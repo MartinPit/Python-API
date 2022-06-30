@@ -13,8 +13,8 @@ class Post(db.Model):
                 'title': self.title,
                 'body': self.body}
 
-    def __init__(self, id, userId, title, body):
-        self.id = id
+    def __init__(self, post_id, userId, title, body):
+        self.id = post_id
         self.userId = userId
         self.title = title
         self.body = body

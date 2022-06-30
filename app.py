@@ -1,97 +1,123 @@
-from flask import Flask, request, jsonify
+from flask import Flask
+from flask_restful import Api, Resource, reqparse
+from requests import get
 
 from database import db, new_id
 from models import Post
-from validators import valid_id, valid_userId, valid_title, valid_body
-from requests import get
+from validators import valid_title, valid_body, id_exists, userId_exists, external_URL
 
-external_URL = "https://jsonplaceholder.typicode.com"
 app = Flask(__name__)
+api = Api(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-
-@app.route('/')
-def hello_world():  # put application's code here
-    return "In progress"
+with app.app_context():
+    db.create_all()
 
 
-@app.route('/posts', methods=['GET'])
-def get_posts():
-    args = request.args
-
-    output = []
-    if 'id' in args:
-        return get_post(args['id'])
-    elif 'userId' in args:
-        posts = Post.query.filter_by(userId=args['userId']).all()
-    else:
-        posts = Post.query.all()
-
-    for post in posts:
-        output.append(post.__repr__())
-
-    return jsonify(output)
+class Index(Resource):
+    def get(self):
+        return {'message': 'Hello, World!'}
 
 
-@app.route('/posts/<int:id>', methods=['GET'])
-def get_post(id):
-    if not valid_id(id):
-        return {}
+class SinglePost(Resource):
+    def get(self, post_id):
+        if id_exists(post_id):
+            return Post.query.filter_by(id=post_id).first().__repr__()
 
-    post = Post.query.filter_by(id=id).first()
-    if post is None:
-        post = get(external_URL + "/posts/" + str(id)).json()
-        print(post)
-        if post != {}:
-            db.session.add(Post(post['id'], post['userId'], post['title'], post['body']))
-            db.session.commit()
-        return post
+        response = get(external_URL + "/posts/" + str(post_id))
+        if response.status_code != 200:
+            return {}, 404
 
-    return post.__repr__()
+        return save_post(response.json())
+
+    def delete(self, post_id):
+        if not id_exists(post_id):
+            return {}, 404
+
+        Post.query.filter_by(id=post_id).delete()
+        db.session.commit()
+        return {}, 200
+
+    def patch(self, post_id):
+        if not id_exists(post_id):
+            return {}, 404
+
+        parser = reqparse.RequestParser()
+        parser.add_argument('title', required=False, location='json')
+        parser.add_argument('body', required=False, location='json')
+
+        post = Post.query.filter_by(id=post_id).first()
+        data = parser.parse_args(strict=True)
+
+        if data['title'] is not None:
+            if not valid_title(data['title']):
+                return {}, 400
+            post.title = data['title']
+
+        if data['body'] is not None:
+            if not valid_body(data['body']):
+                return {}, 400
+            post.body = data['body']
+
+        db.session.commit()
+        return post.__repr__(), 200
 
 
-@app.route('/posts', methods=['POST'])
-def add_post():
-    id = request.json['id']
-    userId = request.json['userId']
-    title = request.json['title']
-    body = request.json['body']
+class PostList(Resource):
+    def get(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('id', required=False, type=int, location='args')
+        parser.add_argument('userId', required=False, type=int, location='args')
 
-    if not valid_id(id):
-        id = new_id()
+        data = parser.parse_args()
+        if data['userId'] is not None:
+            if data['id'] is not None:
+                posts = Post.query.filter_by(userId=data['userId']).filter_by(id=data['id']).all()
+            else:
+                posts = Post.query.filter_by(userId=data['userId']).all()
+        else:
+            if data['id'] is not None:
+                posts = Post.query.filter_by(id=data['id']).all()
+            else:
+                posts = Post.query.all()
 
-    if not valid_userId(userId, external_URL) or not valid_title(title) or not valid_body(body):
-        return {}
+        output = []
+        for post in posts:
+            output.append(post.__repr__())
 
-    post = Post(id, userId, title, body)
-    db.session.add(post)
+        return output, 200
+
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('id', required=True, type=int, location='json')
+        parser.add_argument('userId', required=True, type=int, location='json')
+        parser.add_argument('title', required=True, location='json')
+        parser.add_argument('body', required=True, location='json')
+
+        data = parser.parse_args(strict=True)
+        if id_exists(data['id']):
+            data['id'] = new_id()
+
+        if not userId_exists(data['userId']):
+            return {}, 400
+
+        return save_post(data), 201
+
+
+api.add_resource(Index, '/')
+api.add_resource(SinglePost, '/posts/<int:post_id>')
+api.add_resource(PostList, '/posts')
+
+
+def save_post(post):
+    new_post = Post(post['id'], post['userId'], post['title'], post['body'])
+    db.session.add(new_post)
     db.session.commit()
 
-    return post.__repr__()
-
-
-@app.route('/posts/<int:id>', methods=['DELETE'])
-def delete_post(id):
-    post = Post.query.filter_by(id=id).first()
-    if post is None:
-        return {}
-    db.session.delete(post)
-    db.session.commit()
-    return {}
-
-
-@app.route('/posts/<int:id>', methods=['PATCH'])
-def update_post(id):
-    post_data = request.get_json()
-    post = Post.query.filter_by(id=id).first()
-    if post is None:
-        return "Post not found"
-    post.title = post_data['title']
-    post.body = post_data['body']
-    db.session.commit()
-    return "Post updated"
+    return new_post.__repr__()
 
 
 if __name__ == '__main__':
