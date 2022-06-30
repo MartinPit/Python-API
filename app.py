@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restful import Api, Resource, reqparse
 from requests import get
+from flasgger import Swagger
 
 from database import db, new_id
 from models import Post
@@ -8,6 +9,11 @@ from validators import valid_title, valid_body, id_exists, userId_exists, extern
 
 app = Flask(__name__)
 api = Api(app)
+app.config['SWAGGER'] = {
+    'title': 'PostAPI',
+    'specs_route': '/'
+}
+swagger = Swagger(app, template_file="swagger.json")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -16,10 +22,9 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
-
 class Index(Resource):
     def get(self):
-        return {'message': 'Hello, World!'}
+        return ''
 
 
 class SinglePost(Resource):
@@ -35,11 +40,11 @@ class SinglePost(Resource):
 
     def delete(self, post_id):
         if not id_exists(post_id):
-            return {}, 404
+            return 404
 
         Post.query.filter_by(id=post_id).delete()
         db.session.commit()
-        return {}, 200
+        return {}, 204
 
     def patch(self, post_id):
         if not id_exists(post_id):
