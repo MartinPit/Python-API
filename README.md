@@ -20,7 +20,7 @@ Windows (CMD):
 pip install virtualenv
 virtualenv -p python3 venv
 .\venv\Scripts\activate
-set FLASK_APP = app/app
+set FLASK_APP=app/app
 ```
 
 After that, we need to install all the dependencies necessary for the app to run:
