@@ -1,5 +1,5 @@
-from models import Post
-from database import db
+from app import Post
+from app import db
 from requests import get
 
 external_URL = "https://jsonplaceholder.typicode.com"

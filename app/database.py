@@ -9,7 +9,7 @@ def new_id():
 
 
 def init_db():
-    if input('Are you sure you want to delete all data? (y/n)\n').lower() == 'y':
-        db.drop_all()
-        db.create_all()
-        db.session.commit()
+    # if input('Are you sure you want to delete all data? (y/n)\n').lower() == 'y':
+    db.drop_all()
+    db.create_all()
+    db.session.commit()
