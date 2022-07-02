@@ -3,7 +3,7 @@ from flask_restful import Api, Resource, reqparse
 from requests import get
 from flasgger import Swagger
 
-from database import db, new_id
+from database import db, new_id, init_db
 from models import Post
 from validators import valid_title, valid_body, id_exists, userId_exists, external_URL
 
@@ -19,16 +19,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
 
-class Index(Resource):
-    def get(self):
-        return ''
+@app.cli.command('initdb')
+def initdb_command():
+    init_db()
 
 
 class SinglePost(Resource):
-    def get(self, post_id):
+    @staticmethod
+    def get(post_id):
         if id_exists(post_id):
             return Post.query.filter_by(id=post_id).first().__repr__()
 
@@ -38,15 +37,17 @@ class SinglePost(Resource):
 
         return save_post(response.json())
 
-    def delete(self, post_id):
+    @staticmethod
+    def delete(post_id):
         if not id_exists(post_id):
-            return 404
+            return {}, 404
 
         Post.query.filter_by(id=post_id).delete()
         db.session.commit()
         return {}, 204
 
-    def patch(self, post_id):
+    @staticmethod
+    def patch(post_id):
         if not id_exists(post_id):
             return {}, 404
 
@@ -72,7 +73,8 @@ class SinglePost(Resource):
 
 
 class PostList(Resource):
-    def get(self):
+    @staticmethod
+    def get():
         parser = reqparse.RequestParser()
         parser.add_argument('id', required=False, type=int, location='args')
         parser.add_argument('userId', required=False, type=int, location='args')
@@ -95,7 +97,8 @@ class PostList(Resource):
 
         return output, 200
 
-    def post(self):
+    @staticmethod
+    def post():
         parser = reqparse.RequestParser()
         parser.add_argument('id', required=True, type=int, location='json')
         parser.add_argument('userId', required=True, type=int, location='json')
@@ -112,7 +115,6 @@ class PostList(Resource):
         return save_post(data), 201
 
 
-api.add_resource(Index, '/')
 api.add_resource(SinglePost, '/posts/<int:post_id>')
 api.add_resource(PostList, '/posts')
 
