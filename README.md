@@ -4,7 +4,7 @@ A simple REST API for managing posts.
 
 ## Running the app
 
-It's probably best to run the app from a virtual python environment, so we need to crate, activate it and set the location of the flask app:
+It's probably best to run the app from a virtual python environment, so we need to create, activate it and set the location of the flask app:
 
 Linux (Bash):
 
